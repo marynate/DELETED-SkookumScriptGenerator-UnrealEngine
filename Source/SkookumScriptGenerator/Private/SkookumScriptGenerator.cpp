@@ -83,13 +83,12 @@ class FSkookumScriptGenerator : public ISkookumScriptGenerator
   //---------------------------------------------------------------------------------------
   // Data
 
-  static const int32    ms_path_depth; // Amount of super classes until we start flattening the script file hierarchy due to the evil reign of Windows MAX_PATH. 1 = everything is right under 'Object', 0 is not allowed
-
   static const FString  ms_sk_type_id_names[SkTypeID__Count]; // Names belonging to the ids above
   static const FString  ms_reserved_keywords[]; // = Forbidden variable names
 
   FString               m_binding_code_path; // Output folder for generated binding code files
   FString               m_scripts_path; // Output folder for generated script files
+  int32                 m_scripts_path_depth; // Amount of super classes until we start flattening the script file hierarchy due to the evil reign of Windows MAX_PATH. 1 = everything is right under 'Object', 0 is not allowed
   FString               m_unreal_engine_root_path_local; // Root of "Unreal Engine" folder on local machine
   FString               m_unreal_engine_root_path_build; // Root of "Unreal Engine" folder for builds - may be different to m_unreal_engine_root_local if we're building remotely
   FString               m_runtime_plugin_root_path; // Root of the runtime plugin we're generating the code for - used as base path for include files
@@ -188,6 +187,27 @@ void FSkookumScriptGenerator::Initialize(const FString & root_local_path, const 
   FString directory_to_delete(m_scripts_path / TEXT("Object"));
   IFileManager::Get().DeleteDirectory(*directory_to_delete, false, true);
 
+  // Try to figure the path depth from ini file
+  m_scripts_path_depth = 4; // Set to sensible default in case we don't find it in the ini file
+  FString ini_file_text;
+  if (FFileHelper::LoadFileToString(ini_file_text, *(m_scripts_path / TEXT("../Skookum-project-default.ini"))))
+    {
+    FRegexPattern regex(TEXT("Overlay[0-9]+=Engine-Generated\\|.*?\\|([0-9]+)"));
+    FRegexMatcher matcher(regex, ini_file_text);
+    if (matcher.FindNext())
+      {
+      int32 begin_idx = matcher.GetCaptureGroupBeginning(1);
+      if (begin_idx >= 0)
+        {
+        int32 path_depth = FCString::Atoi(&ini_file_text[begin_idx]);
+        if (path_depth > 0)
+          {
+          m_scripts_path_depth = path_depth;
+          }
+        }
+      }
+    }
+
   // Create debug log file
   #ifdef USE_DEBUG_LOG_FILE
     m_debug_log_file = _wfopen(*(output_directory / TEXT("SkookumScriptGenerator.log.txt")), TEXT("w"));
@@ -277,8 +297,6 @@ void FSkookumScriptGenerator::FinishExport()
 //=======================================================================================
 // FSkookumScriptGenerator implementation
 //=======================================================================================
-
-const int32 FSkookumScriptGenerator::ms_path_depth = 4;
 
 const FString FSkookumScriptGenerator::ms_sk_type_id_names[FSkookumScriptGenerator::SkTypeID__Count] =
   {
@@ -1043,7 +1061,7 @@ FString FSkookumScriptGenerator::get_skookum_class_path(UClass * class_p)
     }
 
   // Build path
-  int32 max_super_class_nesting = FMath::Max(ms_path_depth - 1, 0);
+  int32 max_super_class_nesting = FMath::Max(m_scripts_path_depth - 1, 0);
   FString class_path = m_scripts_path / TEXT("Object");
   for (int32 i = 0; i < max_super_class_nesting && super_class_stack.Num(); ++i)
     {
