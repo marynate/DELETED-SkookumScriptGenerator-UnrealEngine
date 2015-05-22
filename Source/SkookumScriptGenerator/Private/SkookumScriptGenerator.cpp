@@ -182,7 +182,7 @@ void FSkookumScriptGenerator::Initialize(const FString & root_local_path, const 
   m_unreal_engine_root_path_local = root_local_path;
   m_unreal_engine_root_path_build = root_build_path;
   m_runtime_plugin_root_path = include_base;
-  m_scripts_path = include_base / TEXT("../../Scripts/Engine-Generated");
+  m_scripts_path = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(include_base / TEXT("../../Scripts/Engine-Generated")));
 
   // Clear contents of scripts folder for a fresh start
   FString directory_to_delete(m_scripts_path / TEXT("Object"));
